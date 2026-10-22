@@ -86,14 +86,20 @@ fn output_directories_cannot_overlap_storage_or_be_a_root() {
     let storage = std::env::temp_dir().join("mornye-desktop-test");
     let sources = storage.join("sources");
     let data = storage.join("data");
+    let inner = data.join("inner");
     let (sources, data) = (sources.to_string_lossy(), data.to_string_lossy());
-    for value in [
+    let mut rejected = vec![
         storage.to_string_lossy().into_owned(),
-        format!("{data}\\inner"),
-        sources.to_uppercase(),
-        r"C:\".to_owned(),
+        inner.to_string_lossy().into_owned(),
         "relative".to_owned(),
-    ] {
+    ];
+    // Windows paths are case-insensitive and rooted at a drive.
+    if cfg!(windows) {
+        rejected.extend([sources.to_uppercase(), r"C:\".to_owned()]);
+    } else {
+        rejected.push("/".to_owned());
+    }
+    for value in rejected {
         assert!(
             directory_aliases(&value, &sources, &data).is_err(),
             "{value}"
