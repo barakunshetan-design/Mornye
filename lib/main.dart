@@ -9,6 +9,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:mornye/app.dart';
 import 'package:mornye/models/settings.dart';
 import 'package:mornye/providers/download_queue_provider.dart';
@@ -50,6 +51,11 @@ void main() {
         // the backend and platform channels. Calls made earlier would fail or
         // never be answered, leaving extensions uninitialized.
         await waitForActivityAttachment(binding);
+      }
+      if (Platform.isWindows) {
+        // sqflite has no Windows plugin; route its global API through FFI.
+        sqfliteFfiInit();
+        databaseFactory = databaseFactoryFfi;
       }
       await setAppOrientation();
       LicenseRegistry.addLicense(() async* {

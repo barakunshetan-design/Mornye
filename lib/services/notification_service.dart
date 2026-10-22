@@ -137,9 +137,17 @@ class NotificationService {
       requestSoundPermission: false,
     );
 
+    // The GUID identifies the toast activator; keep it stable across releases.
+    const windowsSettings = WindowsInitializationSettings(
+      appName: 'Mornye',
+      appUserModelId: 'com.zarz.mornye',
+      guid: 'bd1f764e-c308-4876-b8e7-0b55b922b431',
+    );
+
     const initSettings = InitializationSettings(
       android: androidSettings,
       iOS: iosSettings,
+      windows: windowsSettings,
     );
 
     await _notifications.initialize(

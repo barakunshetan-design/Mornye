@@ -751,7 +751,7 @@ class HistoryDatabase {
   Future<Set<String>> getAllFilePaths() async {
     final db = await database;
     final rows = await db.rawQuery(
-      'SELECT file_path FROM history WHERE file_path IS NOT NULL AND file_path != ""',
+      "SELECT file_path FROM history WHERE file_path IS NOT NULL AND file_path != ''",
     );
     return rows.map((r) => r['file_path'] as String).toSet();
   }
@@ -772,7 +772,7 @@ class HistoryDatabase {
         'saf_file_name',
         'downloaded_at',
       ],
-      where: 'file_path IS NOT NULL AND file_path != ""',
+      where: "file_path IS NOT NULL AND file_path != ''",
       orderBy: 'sort_added DESC, id DESC',
       limit: limit,
       offset: offset,
