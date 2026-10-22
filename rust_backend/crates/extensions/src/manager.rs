@@ -369,7 +369,8 @@ fn read_source(path: &Path, limit: u64) -> std::io::Result<String> {
     let mut options = OpenOptions::new();
     options.read(true);
     #[cfg(unix)]
-    options.custom_flags((rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::NONBLOCK).bits() as i32);
+    options
+        .custom_flags((rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::NONBLOCK).bits() as i32);
     let mut file = options.open(path)?;
     if !file.metadata()?.is_file() {
         return Err(std::io::Error::other(

@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:material_ui/material_ui.dart' as material_ui;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -103,7 +104,17 @@ class _FluidScrollBehavior extends MaterialScrollBehavior {
   @override
   ScrollPhysics getScrollPhysics(BuildContext context) =>
       const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics());
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => _desktopDragDevices;
 }
+
+/// Adds the mouse so desktop users can drag horizontal carousels, which a
+/// vertical scroll wheel cannot move.
+final _desktopDragDevices = {
+  ...const MaterialScrollBehavior().dragDevices,
+  PointerDeviceKind.mouse,
+};
 
 /// Fades the app content in after an orientation change or a width change
 /// across the shell's rail breakpoint (fold/unfold, split-screen resize) —
@@ -175,7 +186,10 @@ class MornyeApp extends ConsumerWidget {
       settingsProvider.select((s) => s.heroAnimationsEnabled),
     );
     final scrollBehavior = disableOverscrollEffects
-        ? const MaterialScrollBehavior().copyWith(overscroll: false)
+        ? const MaterialScrollBehavior().copyWith(
+            overscroll: false,
+            dragDevices: _desktopDragDevices,
+          )
         : const _FluidScrollBehavior();
 
     Locale? locale;

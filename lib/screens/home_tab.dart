@@ -104,6 +104,13 @@ class _HomeTabState extends ConsumerState<HomeTab>
     with AutomaticKeepAliveClientMixin, SingleTickerProviderStateMixin {
   bool get _showsSearch => widget.mode != HomeTabMode.browse;
   bool get _showsHome => widget.mode != HomeTabMode.search;
+
+  /// Inset of the home feed. On Windows the feed spans the window, as in
+  /// desktop music apps; tablets line it up with the centered column.
+  double get _feedInset =>
+      _showsHome && defaultTargetPlatform == TargetPlatform.windows
+      ? 0
+      : wideListInset(context);
   final _historySnapshot = TrackHistorySnapshot();
   final _urlController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
@@ -954,7 +961,7 @@ class _HomeTabState extends ConsumerState<HomeTab>
 
   Widget _buildHeaderSliver({required String? greeting}) {
     return AppSliverHeader.tabRoot(
-      alignToContent: true,
+      alignToContent: _feedInset > 0,
       title: widget.mode == HomeTabMode.search
           ? context.l10n.mornyeSearch
           : greeting ?? context.l10n.homeTitle,
@@ -996,13 +1003,13 @@ class _HomeTabState extends ConsumerState<HomeTab>
       child: Padding(
         // Centered with the search results on tablets.
         padding: EdgeInsets.fromLTRB(
-          16 + wideListInset(context),
+          16 + (hasResults ? wideListInset(context) : _feedInset),
           (hasResults || showExplore)
               ? 8
               : greetsInHeader
               ? 20
               : 32,
-          16 + wideListInset(context),
+          16 + (hasResults ? wideListInset(context) : _feedInset),
           (hasResults || showExplore) ? 8 : 16,
         ),
         child: _buildSearchBar(),
@@ -1076,7 +1083,7 @@ class _HomeTabState extends ConsumerState<HomeTab>
                 showExplore ||
                 showEmptyHomeState)
             ? const SizedBox.shrink()
-            : _HomeSections(inset: 16 + wideListInset(context)),
+            : _HomeSections(inset: 16 + _feedInset),
       ),
     );
   }
@@ -1220,7 +1227,7 @@ class _HomeTabState extends ConsumerState<HomeTab>
 
     // The header carries the greeting; prompts take turns beneath it.
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 24 + wideListInset(context)),
+      padding: EdgeInsets.symmetric(horizontal: 24 + _feedInset),
       child: const Align(
         alignment: AlignmentDirectional.centerStart,
         child: _HomeTagline(),

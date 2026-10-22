@@ -379,7 +379,14 @@ mod branding_tests {
             clean_path(b"a/./b/../c.js").unwrap(),
             Path::new("a").join("c.js")
         );
-        for name in [&b"/abs.js"[..], b"../up.js", b"a\\b.js", b"a\0.js", b"", b"./"] {
+        for name in [
+            &b"/abs.js"[..],
+            b"../up.js",
+            b"a\\b.js",
+            b"a\0.js",
+            b"",
+            b"./",
+        ] {
             assert!(clean_path(name).is_err(), "{name:?}");
         }
     }

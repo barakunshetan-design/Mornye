@@ -68,12 +68,13 @@ class ExtensionNotifier extends Notifier<ExtensionState> {
   Future<void> _syncDownloadDirectory(AppSettings settings) {
     _downloadDirectorySync = _downloadDirectorySync
         .then((_) async {
-          if (!PlatformBridge.supportsCoreBackend) return;
+          // The grant belongs to the extension owner, which Windows also runs.
+          if (!PlatformBridge.supportsExtensionSystem) return;
           final candidate = settings.downloadDirectory.trim();
           final path =
               settings.storageMode == 'app' &&
                   settings.downloadDirectoryBookmark.isEmpty &&
-                  candidate.startsWith('/') &&
+                  Directory(candidate).isAbsolute &&
                   await Directory(candidate).exists()
               ? candidate
               : '';

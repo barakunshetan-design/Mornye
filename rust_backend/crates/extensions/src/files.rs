@@ -7,7 +7,9 @@ use cap_std::fs::{Dir, File, OpenOptions};
 pub(crate) use mornye_core::fs::clean;
 use std::collections::BTreeMap;
 use std::io;
-use std::path::{Component, Path, PathBuf};
+#[cfg(unix)]
+use std::path::Component;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex, RwLock, Weak};
 use std::thread::{self, ThreadId};
 use std::time::Duration;

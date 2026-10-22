@@ -17,11 +17,16 @@ class BackendChannel {
 
   final String name;
 
+  /// Under `flutter test` the channel stays a [MethodChannel] on every host,
+  /// so tests can mock it as they do for Android and iOS.
+  static final bool _usesDesktopBackend =
+      Platform.isWindows && !Platform.environment.containsKey('FLUTTER_TEST');
+
   MethodChannel get _platform => MethodChannel(name);
 
   @optionalTypeArgs
   Future<T?> invokeMethod<T>(String method, [dynamic arguments]) async {
-    if (!Platform.isWindows) {
+    if (!_usesDesktopBackend) {
       return _platform.invokeMethod<T>(method, arguments);
     }
     final encoded = jsonEncode(arguments ?? const <String, Object?>{});
@@ -40,10 +45,7 @@ class BackendChannel {
     String method, [
     dynamic arguments,
   ]) async {
-    final result = await invokeMethod<Map<dynamic, dynamic>>(
-      method,
-      arguments,
-    );
+    final result = await invokeMethod<Map<dynamic, dynamic>>(method, arguments);
     return result?.cast<K, V>();
   }
 

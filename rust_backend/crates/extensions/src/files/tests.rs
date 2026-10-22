@@ -1,5 +1,7 @@
 use super::*;
-use std::io::{Seek, SeekFrom, Write};
+use std::io::Write;
+#[cfg(unix)]
+use std::io::{Seek, SeekFrom};
 
 #[cfg(unix)]
 #[test]

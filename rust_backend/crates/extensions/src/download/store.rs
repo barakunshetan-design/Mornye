@@ -211,6 +211,7 @@ impl Drop for DownloadFile {
 }
 
 pub(super) fn private_options() -> OpenOptions {
+    #[cfg_attr(not(unix), allow(unused_mut))]
     let mut options = OpenOptions::new();
     #[cfg(unix)]
     {
