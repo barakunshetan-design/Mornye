@@ -57,6 +57,20 @@ add_subdirectory("runner")
 # them to the application.
 include(flutter/generated_plugins.cmake)
 
+# Rust backend: rust_backend/crates/mobile built with the desktop-host feature
+# and loaded by lib/services/backend_channel.dart through dart:ffi.
+set(MORNYE_RUST_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../rust_backend")
+find_program(CARGO cargo HINTS "$ENV{USERPROFILE}/.cargo/bin" REQUIRED)
+add_custom_target(mornye_rust_backend ALL
+  COMMAND ${CMAKE_COMMAND} -E env
+    "MORNYE_APP_VERSION=${FLUTTER_VERSION_MAJOR}.${FLUTTER_VERSION_MINOR}.${FLUTTER_VERSION_PATCH}"
+    "${CARGO}" build -p mornye-mobile --features desktop-host
+    "$<$<NOT:$<CONFIG:Debug>>:--release>"
+  WORKING_DIRECTORY "${MORNYE_RUST_DIR}"
+  COMMAND_EXPAND_LISTS
+  VERBATIM)
+add_dependencies(${BINARY_NAME} mornye_rust_backend)
+
 
 # === Installation ===
 # Support files are copied into place next to the executable, so that it can
@@ -86,6 +100,11 @@ if(PLUGIN_BUNDLED_LIBRARIES)
     DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 endif()
+
+install(FILES
+  "${MORNYE_RUST_DIR}/target/$<IF:$<CONFIG:Debug>,debug,release>/mornye_mobile.dll"
+  DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+  COMPONENT Runtime)
 
 # Copy the native assets provided by the build.dart from all packages.
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/windows/")

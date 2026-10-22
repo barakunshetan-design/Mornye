@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mornye/services/backend_channel.dart';
 import 'package:mornye/services/download_request_payload.dart';
 import 'package:mornye/utils/audio_format_utils.dart';
 import 'package:mornye/utils/file_access.dart';
@@ -68,7 +69,7 @@ class PlatformBridge {
   /// that contain a percentage but no byte counts.
   static const int notificationPercentTotal = 10000;
 
-  static const _channel = MethodChannel('com.zarz.mornye/backend');
+  static const _channel = BackendChannel('com.zarz.mornye/backend');
 
   static int _nativeDataJobSerial = 0;
   static final _nativeDataJobs = <String, Set<_NativeDataJobState>>{};
@@ -193,7 +194,7 @@ class PlatformBridge {
   static bool get supportsCoreBackend => Platform.isAndroid || Platform.isIOS;
 
   static bool get supportsExtensionSystem =>
-      Platform.isAndroid || Platform.isIOS;
+      Platform.isAndroid || Platform.isIOS || Platform.isWindows;
 
   static Stream<ExtensionSessionGrantEvent> extensionSessionGrantEvents() {
     _ensureBackendEventHandler();

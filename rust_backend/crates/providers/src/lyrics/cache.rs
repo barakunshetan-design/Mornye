@@ -6,7 +6,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
+#[cfg(unix)]
 use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
+#[cfg(windows)]
+use std::os::windows::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -15,6 +18,8 @@ pub const MAX_ENTRIES: usize = 500;
 pub const TTL: Duration = Duration::from_secs(24 * 60 * 60);
 const MAX_PERSISTED_BYTES: u64 = 64 << 20;
 const SNAPSHOT_VERSION: u32 = 6;
+#[cfg(windows)]
+const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
 
 #[derive(Clone)]
 struct Entry {
@@ -211,11 +216,14 @@ impl Drop for LyricsCache {
 }
 
 fn read_snapshot(path: &Path) -> Option<Snapshot> {
-    let file = OpenOptions::new()
-        .read(true)
-        .custom_flags((rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::NONBLOCK).bits() as i32)
-        .open(path)
-        .ok()?;
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    options.custom_flags((rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::NONBLOCK).bits() as i32);
+    // Open a symlink itself instead of its target; the is_file check rejects it.
+    #[cfg(windows)]
+    options.custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
+    let file = options.open(path).ok()?;
     let metadata = file.metadata().ok()?;
     if !metadata.is_file() || metadata.len() > MAX_PERSISTED_BYTES {
         return None;
@@ -289,10 +297,12 @@ fn write_snapshot(path: &Path, entries: &BTreeMap<String, Entry>) -> std::io::Re
         .parent()
         .filter(|path| !path.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
-    fs::DirBuilder::new()
-        .recursive(true)
-        .mode(0o700)
-        .create(parent)?;
+    let mut builder = fs::DirBuilder::new();
+    builder.recursive(true);
+    // Windows has no mode bits; the per-user profile ACL already restricts access.
+    #[cfg(unix)]
+    builder.mode(0o700);
+    builder.create(parent)?;
     let bytes = serde_json::to_vec(&snapshot)?;
     if bytes.len() as u64 > MAX_PERSISTED_BYTES {
         return Err(std::io::Error::other(
@@ -335,7 +345,10 @@ mod tests {
 
     #[test]
     fn current_snapshot_restores_supplementary_text() {
-        let file = tempfile::NamedTempFile::new().unwrap();
+        // A closed path, not an open NamedTempFile: Windows refuses to rename
+        // over a file that still has an open handle.
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("lyrics-cache.json");
         let now = UNIX_EPOCH + Duration::from_secs(100);
         let mut lyrics =
             LyricsResponse::from_text("[00:01.009]Original", "Apple Music", "Zarz-LRC");
@@ -354,9 +367,9 @@ mod tests {
                 expires_at: now + Duration::from_secs(100),
             },
         )]);
-        write_snapshot(file.path(), &entries).unwrap();
+        write_snapshot(&path, &entries).unwrap();
         let cache = LyricsCache::default();
-        cache.set_persistence_path(file.path(), now);
+        cache.set_persistence_path(&path, now);
         assert_eq!(cache.get("apple", now), Some(lyrics));
     }
 }

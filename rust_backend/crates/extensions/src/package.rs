@@ -4,10 +4,13 @@ use crate::host::decode_go_utf8;
 use crate::manifest::ExtensionManifest;
 use mornye_core::matching::lowercase;
 use std::collections::HashSet;
+#[cfg(unix)]
 use std::ffi::OsString;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
+#[cfg(unix)]
 use std::os::unix::ffi::OsStringExt;
+#[cfg(unix)]
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use zip::ZipArchive;
@@ -57,11 +60,11 @@ impl ExtensionPackage {
                 "invalid file format: please select a .mornye-ext or .sflx file",
             ));
         }
-        let mut input = OpenOptions::new()
-            .read(true)
-            .custom_flags(rustix::fs::OFlags::NONBLOCK.bits() as i32)
-            .open(path)
-            .map_err(corrupt)?;
+        let mut options = OpenOptions::new();
+        options.read(true);
+        #[cfg(unix)]
+        options.custom_flags(rustix::fs::OFlags::NONBLOCK.bits() as i32);
+        let mut input = options.open(path).map_err(corrupt)?;
         if !input.metadata().map_err(corrupt)?.is_file() {
             return Err(error(INVALID_ARCHIVE));
         }
@@ -162,10 +165,11 @@ impl ExtensionPackage {
             let path = destination.join(&entry.path);
             fs::create_dir_all(path.parent().expect("staging parent"))
                 .map_err(|e| io_error("failed to create extension directory", e))?;
-            let mut output = OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .mode(0o600)
+            let mut options = OpenOptions::new();
+            options.write(true).create_new(true);
+            #[cfg(unix)]
+            options.mode(0o600);
+            let mut output = options
                 .open(&path)
                 .map_err(|e| io_error("failed to create extension file", e))?;
             let mut input = self
@@ -215,6 +219,12 @@ fn clean_path(name: &[u8]) -> Result<PathBuf, PackageError> {
     if name.starts_with(b"/") || name.contains(&b'\\') || name.contains(&0) {
         return Err(unsafe_path());
     }
+    // A colon starts a drive prefix ("C:x") or an alternate data stream ("a:b")
+    // on Windows; either would escape the staging directory once joined.
+    #[cfg(windows)]
+    if name.contains(&b':') {
+        return Err(unsafe_path());
+    }
     let mut parts = Vec::new();
     for part in name.split(|byte| *byte == b'/') {
         match part {
@@ -230,7 +240,13 @@ fn clean_path(name: &[u8]) -> Result<PathBuf, PackageError> {
     if parts.is_empty() {
         return Err(unsafe_path());
     }
-    Ok(PathBuf::from(OsString::from_vec(parts.join(&b'/'))))
+    #[cfg(unix)]
+    return Ok(PathBuf::from(OsString::from_vec(parts.join(&b'/'))));
+    // Windows paths are UTF-16; reject names that are not valid UTF-8.
+    #[cfg(windows)]
+    return String::from_utf8(parts.join(&b'/'))
+        .map(PathBuf::from)
+        .map_err(|_| unsafe_path());
 }
 
 fn number16(bytes: &[u8], offset: usize) -> u64 {
@@ -309,8 +325,14 @@ fn central_names(input: &mut File) -> Result<Vec<Vec<u8>>, PackageError> {
         let mut name = vec![0; name_length as usize];
         input.read_exact(&mut name).map_err(corrupt)?;
         let normalized = clean_path(&name)?;
-        use std::os::unix::ffi::OsStrExt;
-        let key = lowercase(&decode_go_utf8(normalized.as_os_str().as_bytes()));
+        #[cfg(unix)]
+        let key = {
+            use std::os::unix::ffi::OsStrExt;
+            lowercase(&decode_go_utf8(normalized.as_os_str().as_bytes()))
+        };
+        // clean_path only yields UTF-8 paths on Windows.
+        #[cfg(windows)]
+        let key = lowercase(&normalized.to_string_lossy());
         if !seen.insert(key) {
             return Err(error(format!(
                 "duplicate path in extension archive: {}",
@@ -349,5 +371,24 @@ mod branding_tests {
             assert!(is_package_path(Path::new(&name.to_uppercase())), "{name}");
         }
         assert!(!is_package_path(Path::new("example.zip")));
+    }
+
+    #[test]
+    fn clean_path_normalizes_and_rejects_escapes() {
+        assert_eq!(
+            clean_path(b"a/./b/../c.js").unwrap(),
+            Path::new("a").join("c.js")
+        );
+        for name in [&b"/abs.js"[..], b"../up.js", b"a\\b.js", b"a\0.js", b"", b"./"] {
+            assert!(clean_path(name).is_err(), "{name:?}");
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn clean_path_rejects_windows_prefixes_and_streams() {
+        for name in [&b"C:evil.js"[..], b"C:/evil.js", b"a/b:stream", b"\xff.js"] {
+            assert!(clean_path(name).is_err(), "{name:?}");
+        }
     }
 }

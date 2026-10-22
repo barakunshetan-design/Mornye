@@ -7,6 +7,8 @@
 
 mod cancellation;
 mod data_jobs;
+#[cfg(feature = "desktop-host")]
+mod desktop;
 mod extensions;
 mod ffmpeg;
 mod filename;

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:material_3_expressive/material_3_expressive.dart';
@@ -110,6 +111,10 @@ class _SetupScreenState extends ConsumerState<SetupScreen>
       }
       await _checkInitialPermissions();
       if (_platform == TargetPlatform.android) await _restoreSelectedFolder();
+      // Windows offers Music\Mornye up front; the picker can still change it.
+      if (_platform == TargetPlatform.windows) {
+        _selectedDirectory ??= await _getDefaultDirectory();
+      }
     } catch (e, stack) {
       _log.e('Failed to restore setup progress', e, stack);
     } finally {
@@ -364,7 +369,14 @@ class _SetupScreenState extends ConsumerState<SetupScreen>
       // the external picker is visible, including on Android 13 devices.
       await _saveProgress();
       if (!mounted) return;
-      if (_platform == TargetPlatform.iOS) {
+      if (_platform == TargetPlatform.windows) {
+        final path = await FilePicker.getDirectoryPath(
+          initialDirectory: _selectedDirectory,
+        );
+        if (!mounted || path == null || path.isEmpty) return;
+        setState(() => _selectedDirectory = path);
+        await _saveProgress();
+      } else if (_platform == TargetPlatform.iOS) {
         await _showIOSDirectoryOptions();
       } else if (_platform == TargetPlatform.android) {
         Map<String, dynamic>? result;
@@ -559,6 +571,16 @@ class _SetupScreenState extends ConsumerState<SetupScreen>
         return downloadDir.path;
       } catch (e) {
         debugPrint('Cannot create Download folder: $e');
+      }
+    }
+    final profile = Platform.environment['USERPROFILE'];
+    if (_platform == TargetPlatform.windows && profile != null) {
+      final musicDir = Directory('$profile\\Music\\Mornye');
+      try {
+        await musicDir.create(recursive: true);
+        return musicDir.path;
+      } catch (e) {
+        debugPrint('Cannot create Music folder: $e');
       }
     }
     final appDir = await getApplicationDocumentsDirectory();

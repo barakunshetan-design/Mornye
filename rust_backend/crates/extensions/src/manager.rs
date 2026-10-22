@@ -27,6 +27,7 @@ use std::cmp::Ordering as Comparison;
 use std::collections::BTreeMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::Read;
+#[cfg(unix)]
 use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -107,9 +108,11 @@ impl ExtensionManager {
         if sources.as_os_str().is_empty() {
             return Err(error("extension directory is not configured"));
         }
-        fs::DirBuilder::new()
-            .recursive(true)
-            .mode(0o700)
+        let mut builder = fs::DirBuilder::new();
+        builder.recursive(true);
+        #[cfg(unix)]
+        builder.mode(0o700);
+        builder
             .create(sources)
             .map_err(|e| cause("failed to create extensions directory", e))?;
         let sources = fs::canonicalize(sources)
@@ -122,15 +125,13 @@ impl ExtensionManager {
         }
         let mut locks = Vec::new();
         for directory in [&sources, data] {
-            let lock = OpenOptions::new()
-                .read(true)
-                .write(true)
-                .create(true)
-                .truncate(false)
-                .mode(0o600)
-                .custom_flags(
-                    (rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::NONBLOCK).bits() as i32,
-                )
+            let mut options = OpenOptions::new();
+            options.read(true).write(true).create(true).truncate(false);
+            #[cfg(unix)]
+            options.mode(0o600).custom_flags(
+                (rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::NONBLOCK).bits() as i32,
+            );
+            let lock = options
                 .open(directory.join(".backend-manager.lock"))
                 .map_err(|e| cause("failed to lock extension directory", e))?;
             if !lock
@@ -365,10 +366,11 @@ fn error_from_environment(error: crate::environment::EnvironmentError) -> Manage
     ManagerError(error.to_string())
 }
 fn read_source(path: &Path, limit: u64) -> std::io::Result<String> {
-    let mut file = OpenOptions::new()
-        .read(true)
-        .custom_flags((rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::NONBLOCK).bits() as i32)
-        .open(path)?;
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    options.custom_flags((rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::NONBLOCK).bits() as i32);
+    let mut file = options.open(path)?;
     if !file.metadata()?.is_file() {
         return Err(std::io::Error::other(
             "extension source must be a regular file",

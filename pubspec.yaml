@@ -34,6 +34,8 @@ dependencies:
   sqflite: ^2.4.4+1
   # Desktop SQLite; sqflite itself only ships Android and Apple implementations.
   sqflite_common_ffi: ^2.4.4
+  # Native strings for the Windows backend bridge (lib/services/backend_channel.dart).
+  ffi: ^2.2.0
 
 # HTTP & Network
   http: ^1.6.0

@@ -182,7 +182,7 @@ class ExtensionNotifier extends Notifier<ExtensionState> {
       // output folders are resolved by the queue and must not prevent startup.
       if (snapshot.storageMode == 'app' &&
           snapshot.downloadDirectoryBookmark.isEmpty &&
-          outputDirectory.startsWith('/')) {
+          Directory(outputDirectory).isAbsolute) {
         final directory = Directory(outputDirectory);
         if (await directory.exists()) {
           allowedDirectories.add(directory.path);

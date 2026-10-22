@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
+#[cfg(unix)]
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -109,15 +110,13 @@ impl ExtensionRepository {
         fs::create_dir_all(directory).map_err(|e| cause("failed to create repository cache", e))?;
         let cache_directory = fs::canonicalize(directory)
             .map_err(|e| cause("failed to inspect repository cache", e))?;
-        let lock = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .mode(0o600)
-            .custom_flags(
-                (rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::NONBLOCK).bits() as i32,
-            )
+        let mut options = OpenOptions::new();
+        options.read(true).write(true).create(true).truncate(false);
+        #[cfg(unix)]
+        options.mode(0o600).custom_flags(
+            (rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::NONBLOCK).bits() as i32,
+        );
+        let lock = options
             .open(cache_directory.join(".backend-repository.lock"))
             .map_err(|e| cause("failed to lock repository cache", e))?;
         if !lock
@@ -130,13 +129,13 @@ impl ExtensionRepository {
         lock.try_lock()
             .map_err(|_| error("repository cache is already managed"))?;
         let cache = (|| {
-            let file = OpenOptions::new()
-                .read(true)
-                .custom_flags(
-                    (rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::NONBLOCK).bits() as i32,
-                )
-                .open(cache_directory.join(CACHE_FILE))
-                .ok()?;
+            let mut options = OpenOptions::new();
+            options.read(true);
+            #[cfg(unix)]
+            options.custom_flags(
+                (rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::NONBLOCK).bits() as i32,
+            );
+            let file = options.open(cache_directory.join(CACHE_FILE)).ok()?;
             let metadata = file.metadata().ok()?;
             if !metadata.is_file() || metadata.len() > MAX_CACHE_BYTES {
                 return None;

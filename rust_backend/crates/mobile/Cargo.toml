@@ -9,6 +9,10 @@ publish.workspace = true
 [lib]
 crate-type = ["lib", "cdylib", "staticlib"]
 
+[features]
+# C entry point for desktop hosts (Windows), which have no Kotlin or Swift layer.
+desktop-host = []
+
 [dependencies]
 mornye-core.workspace = true
 mornye-network.workspace = true
